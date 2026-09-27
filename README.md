@@ -1,8 +1,8 @@
-# Project Name
+# API格式
 
-A paragraph containing a high-level description of the project, main features and remarks.
+## 本地測試網址
 
-## Requirements
+Base URL: http://localhost:8000
 
 Here you should give a general idea of what a user will need in order to use your library or application. List requirements and then link to another resource with detailed installation or setup instructions.
 
