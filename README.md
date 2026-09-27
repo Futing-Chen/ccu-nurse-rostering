@@ -16,7 +16,9 @@ Base URL (本地測試網址): http://localhost:8000
   ]
   ```
 
-For more details, check the [getting started guide]().
+### 1.2 新增員工需求 (預假/排休)
+
+* 方法與網址: ˋPOST /api/requestsˋ
 
 ## Useful Resources
 
