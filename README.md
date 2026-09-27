@@ -55,9 +55,9 @@ Base URL (本地測試網址): http://localhost:8000
 * 輸入 (Request): (演算法算出的配對結果)
   ```
   [
-    { "shiftId": "SHIFT_1001", "employeeId": "1001" },
-    { "shiftId": "SHIFT_1001", "employeeId": "1004" },
-    { "shiftId": "SHIFT_1002", "employeeId": "1002" }
+    { "shiftId": "SHIFT_260912_01", "employeeId": "1001" },
+    { "shiftId": "SHIFT_260912_02", "employeeId": "1004" },
+    { "shiftId": "SHIFT_260912_03", "employeeId": "1002" }
   ]
   ```
 * 輸出 (Response): `{"status": "success", "message": "排班結果已寫入資料庫"}`
