@@ -8,7 +8,13 @@ Base URL (本地測試網址): http://localhost:8000
 
 * 方法與網址: `GET /api/employees`
 * 輸入 (Request): 無
-* 輸出 (Response): 
+* 輸出 (Response):
+  ```
+  [
+  { "id": "1001", "name": "Alice" },
+  { "id": "1002", "name": "Bob" }
+  ]
+  ```
 
 For more details, check the [getting started guide]().
 
