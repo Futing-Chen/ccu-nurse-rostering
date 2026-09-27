@@ -6,7 +6,9 @@ Base URL (本地測試網址): http://localhost:8000
 
 ### 1.1 取得所有護理師名單
 
-Include here a few examples of commands you can run and what they do. Finally link out to a resource to learn more (next paragraph).
+* 方法與網址
+* 輸入 (Request): 無
+
 
 For more details, check the [getting started guide]().
 
