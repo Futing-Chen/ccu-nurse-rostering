@@ -31,6 +31,19 @@ Base URL (本地測試網址): http://localhost:8000
   ```
 * 輸出 (Response): `{"status": "success", "message": "願望已建立"}`
 
-## Useful Resources
+## 2. 演算法與資料庫對接
 
-Include here any other links that are relevant for the project, such as more docs, tutorials, and demos.
+### 2.1 獲取演算法所需的所有參數 
+將資料庫的表組合成完整 JSON 格式
+
+* 方法與網址: `GET /api/solver/dataset?year_month=2026-09`
+* 輸入 (Request): 無 
+* 輸出 (Response):
+  ```
+  {
+    "masterData": { "shiftTypes": [...] },
+    "employees": [...],
+    "shifts": [...],
+    "requests": { "dayOff": [...], "dayOn": [...], ... }
+  }
+  ```
