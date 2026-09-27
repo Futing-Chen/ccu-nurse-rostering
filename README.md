@@ -4,12 +4,7 @@
 
 Base URL: http://localhost:8000
 
-Here you should give a general idea of what a user will need in order to use your library or application. List requirements and then link to another resource with detailed installation or setup instructions.
-
-- Requirement one
-- Another requirement
-
-Check the [installation notes]() for more details on how to install the project.
+`code`
 
 ## Usage
 
