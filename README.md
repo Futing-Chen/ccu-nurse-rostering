@@ -11,8 +11,8 @@ Base URL (本地測試網址): http://localhost:8000
 * 輸出 (Response):
   ```
   [
-  { "id": "1001", "name": "Alice" },
-  { "id": "1002", "name": "Bob" }
+    { "id": "1001", "name": "Alice" },
+    { "id": "1002", "name": "Bob" }
   ]
   ```
 
