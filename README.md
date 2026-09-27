@@ -61,3 +61,32 @@ Base URL (本地測試網址): http://localhost:8000
   ]
   ```
 * 輸出 (Response): `{"status": "success", "message": "排班結果已寫入資料庫"}`
+
+## 3. 最終班表查詢 (前端顯示用)
+
+### 3.1 查詢最終班表
+
+* 方法與網址: `GET /api/schedule?start_date=2026-09-01&end_date=2026-09-30`
+* 輸入 (Request): 無
+* 輸出 (Response):
+  ```
+  [
+    {
+      "date": "2026-10-01",
+      "shiftTypeId": "BA",
+      "shiftName": "白班",
+      "assignedNurses": [
+        { "id": "1001", "name": "Alice" },
+        { "id": "1004", "name": "David" }
+      ]
+    },
+    {
+      "date": "2026-10-01",
+      "shiftTypeId": "CG",
+      "shiftName": "小夜",
+      "assignedNurses": [
+        { "id": "1002", "name": "Bob" }
+      ]
+    }
+  ]
+  ```
