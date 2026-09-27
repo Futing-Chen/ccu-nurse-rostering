@@ -72,7 +72,7 @@ Base URL (本地測試網址): http://localhost:8000
   ```
   [
     {
-      "date": "2026-10-01",
+      "date": "2026-09-01",
       "shiftTypeId": "BA",
       "shiftName": "白班",
       "assignedNurses": [
@@ -81,7 +81,7 @@ Base URL (本地測試網址): http://localhost:8000
       ]
     },
     {
-      "date": "2026-10-01",
+      "date": "2026-09-01",
       "shiftTypeId": "CG",
       "shiftName": "小夜",
       "assignedNurses": [
