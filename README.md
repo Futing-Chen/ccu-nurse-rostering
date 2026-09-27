@@ -1,4 +1,4 @@
-# API格式
+# API格式與JSON輸入輸出固定
 
 Base URL (本地測試網址): http://localhost:8000
 
