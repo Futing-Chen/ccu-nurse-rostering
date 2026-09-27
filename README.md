@@ -29,7 +29,7 @@ Base URL (本地測試網址): http://localhost:8000
     "weight": 10
   }
   ```
-* 輸出 (Response): `{"status": "success", "message": "願望已建立"}`
+* 輸出 (Response): `{"status": "success", "message": "需求已建立"}`
 
 ## 2. 演算法與資料庫對接
 
