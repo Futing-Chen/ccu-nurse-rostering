@@ -47,3 +47,17 @@ Base URL (本地測試網址): http://localhost:8000
     "requests": { "dayOff": [...], "dayOn": [...], ... }
   }
   ```
+
+### 2.2 上傳演算法排班結果
+把排班結果存進 `shift_assignments` 資料表
+
+* 方法與網址: `POST /api/solver/assignments`
+* 輸入 (Request): (演算法算出的配對結果)
+  ```
+  [
+    { "shiftId": "SHIFT_1001", "employeeId": "1001" },
+    { "shiftId": "SHIFT_1001", "employeeId": "1004" },
+    { "shiftId": "SHIFT_1002", "employeeId": "1002" }
+  ]
+  ```
+* 輸出 (Response): `{"status": "success", "message": "排班結果已寫入資料庫"}`
