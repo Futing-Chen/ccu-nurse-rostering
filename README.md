@@ -24,7 +24,7 @@ Base URL (本地測試網址): http://localhost:8000
   {
     "employeeId": "1001",
     "requestType": "DAY_OFF",
-    "targetDate": "2026-10-15",
+    "targetDate": "2026-09-15",
     "targetShiftId": null,
     "weight": 10
   }
