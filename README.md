@@ -6,9 +6,9 @@ Base URL (本地測試網址): http://localhost:8000
 
 ### 1.1 取得所有護理師名單
 
-* 方法與網址
+* 方法與網址: `GET /api/employees`
 * 輸入 (Request): 無
-
+* 輸出 (Response): 
 
 For more details, check the [getting started guide]().
 
