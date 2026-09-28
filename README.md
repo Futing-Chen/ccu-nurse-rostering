@@ -148,11 +148,15 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 # Ⅲ. 環境變數
 
-請大家先 clone 這個 repository (要先裝git)。
+請大家按照以下步驟操作:
 
-Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔，
+1. clone 這個 repository (請先點擊底下的網址安裝 git 再進行 clone)
 
-然後在 .env 裡把剛剛複製的內容貼上，最後再根據註解的說明修改這個 .env。
+2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
+
+3. 在 .env 裡把剛剛複製的內容貼上 (完成後請負責資料庫的組員繼續執行步驟4，其他組員做到這一步就可以結束了。)
+  
+4. 根據註解的說明修改 .env 的內容
 
 ---
 Git 下載網址: https://git-scm.com/install/
