@@ -6,7 +6,7 @@
 
 # 資料欄位名稱
 
-* 護理師的編號統一使用 `id` (在 `employees` 陣列中)與 `employeeId` (在 `requests` 陣列中)
+* 護理師的編號統一使用 `id` (在 `employees` 陣列中) 與 `employeeId` (在 `requests` 陣列中)
 * 名稱統一使用 `name`
 * 日期統一使用 `date`，格式統一為`YYYY-MM-DD`
 * 班別統一使用 `shiftTypeId` (代號 `BA` 代表白班、`CG` 代表小夜班、`AA` 代表大夜班、`OF` 代表休假)
