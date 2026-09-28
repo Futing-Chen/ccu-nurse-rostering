@@ -1,4 +1,10 @@
-# Ⅰ. API格式
+# Python 版本
+
+統一使用 Python 3.11.xx 的版本 (xx的部分任意，例如 3.11.6 跟 3.11.13 都可以)
+
+如果已經安裝更舊或更新的版本 (例如 3.7 或 3.13 版)，請刪除並重新安裝 3.11 版
+
+# API格式
 
 Base URL (本地測試網址): http://localhost:8000
 
@@ -91,7 +97,7 @@ Base URL (本地測試網址): http://localhost:8000
   ]
   ```
 
-# Ⅱ. 錯誤格式
+# 錯誤格式
 
 無論發生什麼錯誤，都必須以固定結構回傳狀態碼。
 
@@ -146,7 +152,7 @@ Base URL (本地測試網址): http://localhost:8000
 若有其他類型的錯誤，請參考: 
 https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
-# Ⅲ. 環境變數
+# 環境變數
 
 請大家按照以下步驟操作:
 
