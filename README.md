@@ -4,13 +4,6 @@
 
 如果已經安裝更舊或更新的版本 (例如 3.7 或 3.13 版)，請刪除並重新安裝 3.11 版
 
-# 資料欄位名稱
-
-* 護理師的編號統一使用 `id` (在 `employees` 陣列中) 與 `employeeId` (在 `requests` 陣列中)
-* 名稱統一使用 `name`
-* 日期統一使用 `date`，格式統一為`YYYY-MM-DD`
-* 班別統一使用 `shiftTypeId` (代號 `BA` 代表白班、`CG` 代表小夜班、`AA` 代表大夜班、`OF` 代表休假)
-
 # API格式
 
 Base URL (本地測試網址): http://localhost:8000
