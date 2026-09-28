@@ -171,17 +171,17 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
    
 3. 複製 `https` 選項底下方框內的網址
 
-4. 打開`命令提示字元` (Windows) 或`終端機` (macOS) 輸入 `cd desktop` (Windows) 或 `cd ~/Desktop` (macOS) 並按下 `enter` 鍵
+4. 打開`命令提示字元` (Windows) 或`終端機` (macOS) 輸入 `cd desktop` (Windows) 或 `cd ~/Desktop` (macOS) 並按下 `enter` 鍵 (Windows) 或 `return` 鍵 (macOS)
 
-5. 輸入 git clone + 剛才複製的網址 (例如 `git clone https://github.com`) 並按下 `enter` 鍵 
+6. 輸入 git clone + 剛才複製的網址 (例如 `git clone https://github.com`) 並按下 `enter` 鍵 (Windows) 或 `return` 鍵 (macOS)
 
-6. Clone 完成以後打開桌面上的 `ccu-nurse-rostering` 檔案
+8. Clone 完成以後打開桌面上的 `ccu-nurse-rostering` 檔案
   
-7.  點開 `.env.example` 檔，並將裡面的內容複製起來，接著在資料夾內創建一個 `.env` 檔
+9.  點開 `.env.example` 檔，並將裡面的內容複製起來，接著在資料夾內創建一個 `.env` 檔
 
-8. 在 `.env` 裡把剛剛複製的內容貼上 (完成後請負責資料庫的同學繼續執行步驟9，其他同學做到這一步就可以結束了。)
+10. 在 `.env` 裡把剛剛複製的內容貼上 (完成後請負責資料庫的同學繼續執行步驟9，其他同學做到這一步就可以結束了。)
   
-9. 根據註解的說明修改 .env 的內容
+11. 根據註解的說明修改 .env 的內容
 
 ---
 Git 下載網址: https://git-scm.com/install/
