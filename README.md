@@ -160,11 +160,13 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 5. 輸入 git clone + 剛才複製的網址 (例如 `git clone https://github.com`) 並按下 `enter` 鍵 
 
-2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
-
-3. 在 .env 裡把剛剛複製的內容貼上 (完成後請負責資料庫的組員繼續執行步驟4，其他組員做到這一步就可以結束了。)
+6. Clone 完成以後打開桌面上的 `ccu-nurse-rostering` 檔案
   
-4. 根據註解的說明修改 .env 的內容
+7.  點開 `.env.example` 檔，並將裡面的內容複製起來，接著在資料夾內創建一個 `.env` 檔
+
+8. 在 `.env` 裡把剛剛複製的內容貼上 (完成後請負責資料庫的組員繼續執行步驟9，其他組員做到這一步就可以結束了。)
+  
+9. 根據註解的說明修改 .env 的內容
 
 ---
 Git 下載網址: https://git-scm.com/install/
