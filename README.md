@@ -156,7 +156,9 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
    
 3. 複製 http 選項底下方框內的網址
 
-4. 打開命令提示字元 (Windows)/終端機 (macOS) 
+4. 打開命令提示字元 (Windows)/終端機 (macOS) 輸入 cd desktop (Windows)/cd ~/Desktop 並按下 enter 鍵
+
+5. 輸入  
 
 2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
 
