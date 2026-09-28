@@ -11,7 +11,7 @@
 
 # 資料庫架構
 
-請負責資料庫的同學使用 `create_database.sql` 創建 MySQL 資料庫，並將資料庫命名為
+請負責資料庫的同學使用 `create_database.sql` 創建 MySQL 資料庫，並將資料庫命名為 `ccu_nurse_rostering`
 
 # API格式
 
