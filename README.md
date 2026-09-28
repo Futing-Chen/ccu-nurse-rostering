@@ -111,7 +111,7 @@ Base URL (本地測試網址): http://localhost:8000
 
 # 測試資料
 
-使用 `ccu_nurse_rostering.json` 作為測試用的假資料，模擬 2026 年 9 月 1 日 至 14 日共兩週的排班情況
+使用 `ccu_nurse_rostering_testing.json` 作為測試用的假資料，模擬 2026 年 9 月 1 日 至 14 日共兩週的排班情況
 
 # 錯誤格式
 
