@@ -1,4 +1,4 @@
-# API格式與JSON輸入輸出固定
+# Ⅰ. API格式
 
 Base URL (本地測試網址): http://localhost:8000
 
@@ -91,7 +91,7 @@ Base URL (本地測試網址): http://localhost:8000
   ]
   ```
 
-# 系統錯誤回應規範格式
+# Ⅱ. 錯誤格式
 
 無論發生什麼錯誤，都必須以固定結構回傳狀態碼。
 
@@ -146,7 +146,7 @@ Base URL (本地測試網址): http://localhost:8000
 若有其他類型的錯誤，請參考: 
 https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
-# 環境變數
+# Ⅲ. 環境變數
 
 請大家先 clone 這個 repository (要先裝git)。
 
