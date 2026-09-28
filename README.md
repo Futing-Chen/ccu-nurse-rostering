@@ -150,7 +150,7 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 請大家按照以下步驟操作:
 
-1. clone 這個 repository (請先點擊底下的網址安裝 git 再進行 clone)
+1. Clone 這個 repository (請先點擊底下的網址安裝 git 再進行 clone)
 
 2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
 
