@@ -180,7 +180,7 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 6. 輸入 git clone + 剛才複製的網址 (例如 `git clone https://github.com`) 並按下 `enter` 鍵 (Windows) 或 `return` 鍵 (macOS)
 
-8. Clone 完成以後打開桌面上的 `ccu-nurse-rostering` 檔案
+8. Clone 完成以後打開桌面上的 `ccu-nurse-rostering` 資料夾
   
 9.  點開 `.env.example` 檔，並將裡面的內容複製起來，接著在資料夾內創建一個 `.env` 檔
 
