@@ -149,9 +149,13 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 # 環境變數
 
 請大家先 clone 這個 repository (要先裝git)。
+
 Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔，
+
 然後在 .env 裡把剛剛複製的內容貼上，最後再根據註解的說明修改這個 .env。
 
 Git 下載網址: https://git-scm.com/install/
+
 Git 安裝教學 (for Windows): https://www.youtube.com/watch?v=opVLrDcEJRE
+
 Git 安裝教學 (for macOS): https://www.youtube.com/watch?v=13agcqjeRBA 
