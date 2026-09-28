@@ -90,3 +90,59 @@ Base URL (本地測試網址): http://localhost:8000
     }
   ]
   ```
+
+
+# 系統錯誤回應規範格式
+
+無論發生什麼錯誤，都必須以固定結構回傳狀態碼。
+
+負責後端的組員請參考 `異常處理.py` 將錯誤格式統一。
+
+負責前端的組員請使用 `if response["status"] == "error":`，
+將錯誤統一捕捉，並把 `response["message"]` 直接顯示為網頁上的警告彈出視窗。
+
+以下舉例錯誤類型:
+
+## 1. 參數錯誤或業務邏輯錯誤 (HTTP Status 400)
+例如忘記輸入月份參數
+   ```
+   {
+    "status": "error",
+    "error_code": 400,
+    "message": "缺少必要的查詢參數：year_month",
+    "details": "請提供 YYYY-MM 格式的月份"
+   }
+   ```
+
+## 2. 找不到資源 (HTTP Status 404)
+例如查詢一個不存在的護理師 ID
+   ```
+   {
+    "status": "error",
+    "error_code": 404,
+    "message": "找不到該護理師資料",
+    "details": {"employee_id": "9999"}
+   }
+   ```
+
+## 3. FastAPI 內建的資料驗證錯誤 (HTTP Status 422)
+例如日期格式打錯
+   ```
+   {
+    "status": "error",
+    "error_code": 422,
+    "message": "資料格式驗證失敗",
+    "details": [
+     {
+      "loc": ["body", "targetDate"],
+      "msg": "invalid date format",
+      "type": "value_error.date"
+      }
+    ]
+   }
+   ```
+
+## 4. 其他錯誤
+
+若有其他類型的錯誤，請參考: 
+https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
