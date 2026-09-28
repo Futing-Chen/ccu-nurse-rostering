@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 匯入在 api 資料夾寫好的路由器
 from api.endpoints import router as api_router
+# 匯入錯誤處理註冊函數
+from exception_handler import register_exception_handlers
 
 # 1. 初始化 FastAPI 應用程式
 app = FastAPI(
@@ -10,6 +12,9 @@ app = FastAPI(
     description="提供給 Streamlit 前端與 n8n 自動化串接的核心後端服務",
     version="1.0.0"
 )
+
+# 註冊自訂的錯誤處理器
+register_exception_handlers(app)
 
 # 2. 設定 CORS (跨來源資源共用) - 防雷機制
 # 因為 Streamlit 網頁 (通常在 port 8501) 和 n8n 
