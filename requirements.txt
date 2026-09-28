@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+
+sqlalchemy
+pymysql
+
+python-dotenv
+
+ortools
+
+streamlit
+requests
+pandas
