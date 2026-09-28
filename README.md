@@ -4,6 +4,8 @@
 
 如果已經安裝更舊或更新的版本 (例如 3.7 或 3.13 版)，請刪除並重新安裝 3.11 版
 
+Python 3.11.9 下載網址: https://python.club.tw/downloads/release/python-3119/
+
 # 資料欄位名稱與格式
 
 * 班別代碼: `BA` 白班、`CG` 小夜班、`AA` 大夜班、`OF` 休假
