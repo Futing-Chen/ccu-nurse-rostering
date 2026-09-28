@@ -152,7 +152,11 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 1. 點擊底下的網址安裝 git
 
-2. Clone 這個 repository 
+2. 在這個 repository 的首頁點選綠色的 code 按鈕
+   
+3. 複製 http 選項底下方框內的網址
+
+4. 打開命令提示字元 (Windows)/終端機 (macOS) 
 
 2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
 
@@ -163,6 +167,6 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 ---
 Git 下載網址: https://git-scm.com/install/
 
-Git 安裝教學 (for Windows): https://www.youtube.com/watch?v=opVLrDcEJRE
+Git 安裝教學 (for Windows): https://www.youtube.com/watch?v=vXj1yyWIyrs
 
 Git 安裝教學 (for macOS): https://www.youtube.com/watch?v=13agcqjeRBA 
