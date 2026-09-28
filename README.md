@@ -95,7 +95,7 @@ Base URL (本地測試網址): http://localhost:8000
 
 無論發生什麼錯誤，都必須以固定結構回傳狀態碼。
 
-負責後端的組員請參考 `異常處理.py` 將錯誤格式統一。
+負責後端的組員請參考 `exception_handler.py` 將錯誤格式統一。
 
 負責前端的組員請使用 `if response["status"] == "error":`，
 將錯誤統一捕捉，並把 `response["message"]` 直接顯示為網頁上的警告彈出視窗。
