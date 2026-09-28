@@ -28,7 +28,7 @@ if st.button("Ping 後端伺服器"):
             st.error(f"連線失敗！狀態碼：{response.status_code}")
             
     except requests.exceptions.ConnectionError:
-        st.error("無法連線！請確認 FastAPI 伺服器 (uvicorn) 是否正在執行中。")
+        st.error("無法連線！請確認 FastAPI 伺服器是否正在執行中。")
 
 st.divider()
 
