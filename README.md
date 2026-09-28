@@ -152,13 +152,13 @@ https://developer.mozilla.org/zh-TW/docs/Web/HTTP/Reference/Status
 
 1. 點擊底下的網址安裝 git
 
-2. 在這個 repository 的首頁點選綠色的 code 按鈕
+2. 在這個 repository 的首頁點選綠色的 `code` 按鈕
    
-3. 複製 http 選項底下方框內的網址
+3. 複製 `https` 選項底下方框內的網址
 
-4. 打開命令提示字元 (Windows)/終端機 (macOS) 輸入 cd desktop (Windows)/cd ~/Desktop 並按下 enter 鍵
+4. 打開`命令提示字元` (Windows) 或`終端機` (macOS) 輸入 `cd desktop` (Windows) 或 `cd ~/Desktop` (macOS) 並按下 `enter` 鍵
 
-5. 輸入  
+5. 輸入 git clone + 剛才複製的網址 (例如 `git clone https://github.com`) 並按下 `enter` 鍵 
 
 2. Clone 完成以後將 .env.example 的內容複製起來，接著在資料夾內創建一個 .env 檔
 
