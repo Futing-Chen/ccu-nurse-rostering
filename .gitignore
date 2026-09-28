@@ -1,1 +1,21 @@
+# 環境變數檔案 (安全機密)
 .env
+
+# Python 暫存與編譯檔案
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 虛擬環境 (如果有使用的話)
+venv/
+.venv/
+env/
+.env_folder/
+
+# 作業系統產生的暫存檔
+.DS_Store
+Thumbs.db
+
+# 編輯器暫存檔 (如 VS Code)
+.vscode/
+.idea/
