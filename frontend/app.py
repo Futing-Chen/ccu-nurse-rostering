@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 # 1. 載入環境變數 (讀取根目錄的 .env)
 load_dotenv()
-API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")   
 
 # 2. 網頁標題與基本設定
 st.set_page_config(page_title="護理排班系統", layout="wide")
