@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 # 匯入 SQL 連線函數
 from models.database import get_db_connection
 
@@ -34,6 +34,7 @@ class Shift(BaseModel):
 class RequestItem(BaseModel):
     employeeId: str
     date: str
+    shiftId: Optional[str] = None  # shiftOff/shiftOn 時填入班次ID，對應 target_shift_id (其餘為 None)
     weight: int = 10
 
 class RequestsData(BaseModel):
