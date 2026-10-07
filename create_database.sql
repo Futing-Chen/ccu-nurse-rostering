@@ -1,3 +1,5 @@
+CREATE DATABASE IF NOT EXISTS ccu_nurse_rostering;
+USE ccu_nurse_rostering;
 -- 1. 班別表
 CREATE TABLE shift_types (
     id VARCHAR(10) PRIMARY KEY, -- 如 "BA", "CG", "AA"

@@ -57,6 +57,31 @@ class SchedulePayload(BaseModel):
 def ping_server():
     return {"status": "success", "message": "護理排班 API 伺服器運作中！"}
 
+@router.get("/db-check")
+def db_check():
+    """
+    確認 FastAPI 能否連上 MySQL，並回傳資料庫版本與現有的資料表。
+    """
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT VERSION() AS version, DATABASE() AS db_name")
+            info = cursor.fetchone()
+            cursor.execute("SHOW TABLES")
+            tables = [list(row.values())[0] for row in cursor.fetchall()]
+
+        return {
+            "status": "success",
+            "message": "成功連上 MySQL！",
+            "version": info["version"],
+            "database": info["db_name"],
+            "tables": tables
+        }
+
+    finally:
+        conn.close()
+
 @router.post("/generate-schedule")
 def generate_schedule(payload: SchedulePayload):
     """
