@@ -23,7 +23,7 @@ Python 3.11.9 下載網址: https://python.club.tw/downloads/release/python-3119
 2. 重新執行 `create_database.sql`
 3. 在專案資料夾執行 `python seed_database.py` 匯入假資料
 
-## 護理師的三種狀態
+# 護理師的三種狀態
 
 系統支援多個病房，護理師對某個病房在某一天的狀態有三種:
 
