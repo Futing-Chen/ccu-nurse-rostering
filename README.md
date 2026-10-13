@@ -265,10 +265,7 @@ Base URL (本地測試網址): http://localhost:8000
 
 # 測試資料
 
-使用 `ccu_nurse_rostering_testing.json` 作為測試用的假資料，模擬 2026 年 9 月 1 日 至 14 日共兩週的排班情況
 
-假資料沒有病房的資訊，用 `python seed_database.py` 匯入時會自動建立一個預設病房 `W01`，
-把所有班次歸到 `W01`，並把 15 位護理師放進 `W01` 在 9/1 到 9/14 的名單
 
 # 錯誤格式
 
