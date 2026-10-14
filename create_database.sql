@@ -19,7 +19,8 @@ CREATE TABLE employees (
 -- 3. 病房表
 CREATE TABLE wards (
     id VARCHAR(20) PRIMARY KEY, -- 如 "W01"
-    name NVARCHAR(50) NOT NULL  -- 病房名稱
+    name NVARCHAR(50) NOT NULL, -- 病房名稱
+    max_patients INT NOT NULL   -- 病房最大容量，產生班次時用來計算需求人數 (修改後只影響之後產生的班次)
 );
 
 -- 4. 每日班次表 (每個班次屬於一個病房)
@@ -28,8 +29,9 @@ CREATE TABLE shifts (
     ward_id VARCHAR(20) NOT NULL, -- 如 "W01"
     date DATE NOT NULL,         -- 格式 2026-09-01
     shift_type_id VARCHAR(10) NOT NULL, -- 如 "BA"
-    expected_patients INT NOT NULL,
-    required_nurses INT NOT NULL,
+    expected_patients INT NOT NULL, -- 排班時預設的病人數 (產生班次當時的病房最大容量)
+    actual_patients INT,            -- 實際病人數，由護理長事後填入 (未填為 NULL)
+    required_nurses INT NOT NULL,   -- 依 expected_patients 與護病比算出的需求人數
     FOREIGN KEY (ward_id) REFERENCES wards(id),
     FOREIGN KEY (shift_type_id) REFERENCES shift_types(id)
 );

@@ -69,6 +69,8 @@ def seed(json_path):
     # 名單：有班次的每一天，所有護理師都在預設病房的名單內
     shift_dates = sorted({s["date"] for s in data["shifts"]})
     roster_rows = [(DEFAULT_WARD_ID, d, e["id"]) for d in shift_dates for e in data["employees"]]
+    # 病房最大容量：取假資料班次裡最大的預期病人數
+    ward_max_patients = max((s["expectedPatients"] for s in data["shifts"]), default=0)
 
     conn = get_db_connection()
     try:
@@ -83,7 +85,10 @@ def seed(json_path):
                 shift_type_rows,
             )
             cursor.executemany("INSERT INTO employees (id, name) VALUES (%s, %s)", employee_rows)
-            cursor.execute("INSERT INTO wards (id, name) VALUES (%s, %s)", (DEFAULT_WARD_ID, DEFAULT_WARD_NAME))
+            cursor.execute(
+                "INSERT INTO wards (id, name, max_patients) VALUES (%s, %s, %s)",
+                (DEFAULT_WARD_ID, DEFAULT_WARD_NAME, ward_max_patients),
+            )
             cursor.executemany(
                 "INSERT INTO shifts (id, ward_id, date, shift_type_id, expected_patients, required_nurses) "
                 "VALUES (%s, %s, %s, %s, %s, %s)",
@@ -111,7 +116,7 @@ def seed(json_path):
     print(f"匯入完成：{json_path}")
     print(f"  shift_types: {len(shift_type_rows)} 筆")
     print(f"  employees:   {len(employee_rows)} 筆")
-    print(f"  wards:       1 筆 ({DEFAULT_WARD_ID})")
+    print(f"  wards:       1 筆 ({DEFAULT_WARD_ID}，最大容量 {ward_max_patients} 人)")
     print(f"  shifts:      {len(shift_rows)} 筆")
     print(f"  ward_rosters:{len(roster_rows)} 筆")
     print(f"  requests:    {len(request_rows)} 筆")

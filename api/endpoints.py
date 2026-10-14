@@ -75,22 +75,107 @@ class WardCreate(BaseModel):
 
     id: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=50)
+    maxPatients: int = Field(ge=1)    # 病房最大容量
+
+class WardUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    maxPatients: Optional[int] = Field(default=None, ge=1)    # 修改後只影響之後產生的班次
 
 class RosterUpdate(BaseModel):
     startDate: date_type
     endDate: date_type
     employeeIds: List[str]    # 這段期間負責該病房的護理師，空陣列代表清空名單
 
+class ShiftsGenerate(BaseModel):
+    startDate: date_type
+    endDate: date_type
+
+class ShiftUpdate(BaseModel):
+    actualPatients: Optional[int] = Field(default=None, ge=0)    # 填 null 代表清除
+
 class AssignmentItem(BaseModel):
     shiftId: str
     employeeId: str
+
+class AssignmentsUpload(BaseModel):
+    wardId: str
+    startDate: date_type
+    endDate: date_type
+    assignments: List[AssignmentItem]    # 空陣列代表清空該期間的排班
 
 # ==========================================
 # 共用工具
 # ==========================================
 
-# 一次設定病房名單的天數上限，避免打錯年份時寫入大量資料
-MAX_ROSTER_DAYS = 92
+# 一次處理的日期區間天數上限 (名單、班次、排班)，避免打錯年份時寫入大量資料
+MAX_DATE_RANGE_DAYS = 92
+
+# 演算法需要參考排班期間開始前幾天的排班紀錄 (跨週的休息規則用)
+PREVIOUS_ASSIGNMENT_DAYS = 7
+
+def required_nurses_for(patients: int, ratio: int) -> int:
+    """依護病比算出需要的護理師人數 (無條件進位)，例如 35 位病人、1:7 -> 5 人。"""
+    return -(-patients // ratio)
+
+def check_date_range(start: date_type, end: date_type, start_name: str, end_name: str) -> int:
+    """確認開始日不晚於結束日、且天數不超過上限，回傳天數 (含頭尾)。"""
+    if start > end:
+        raise HTTPException(status_code=400, detail={
+            "message": f"{start_name} 不可晚於 {end_name}",
+            "details": {start_name: str(start), end_name: str(end)}
+        })
+    days = (end - start).days + 1
+    if days > MAX_DATE_RANGE_DAYS:
+        raise HTTPException(status_code=400, detail={
+            "message": "日期區間過長",
+            "details": f"一次最多處理 {MAX_DATE_RANGE_DAYS} 天，請分次處理"
+        })
+    return days
+
+def get_shift_staffing(cursor, shift_id: str) -> dict:
+    """
+    查出班次的人力狀況。有填實際病人數時以實際需求人數為準，否則以排班時的需求人數為準。
+    staffingStatus: SURPLUS (多餘) / OK (剛好) / SHORTAGE (不足)
+    """
+    cursor.execute("""
+        SELECT s.id, s.ward_id, DATE_FORMAT(s.date, '%%Y-%%m-%%d') AS date, s.shift_type_id,
+               s.expected_patients, s.required_nurses, s.actual_patients, st.nurse_to_patient_ratio,
+               (SELECT COUNT(*) FROM shift_assignments sa WHERE sa.shift_id = s.id) AS assigned
+        FROM shifts s
+        JOIN shift_types st ON st.id = s.shift_type_id
+        WHERE s.id = %s
+    """, (shift_id,))
+    row = cursor.fetchone()
+    actual_required = (
+        None if row["actual_patients"] is None
+        else required_nurses_for(row["actual_patients"], row["nurse_to_patient_ratio"])
+    )
+    target = row["required_nurses"] if actual_required is None else actual_required
+    difference = row["assigned"] - target
+    return {
+        "shiftId": row["id"],
+        "wardId": row["ward_id"],
+        "date": row["date"],
+        "shiftTypeId": row["shift_type_id"],
+        "expectedPatients": row["expected_patients"],
+        "requiredNurses": row["required_nurses"],
+        "actualPatients": row["actual_patients"],
+        "actualRequiredNurses": actual_required,
+        "assignedCount": row["assigned"],
+        "staffingDifference": difference,
+        "staffingStatus": "SURPLUS" if difference > 0 else "OK" if difference == 0 else "SHORTAGE"
+    }
+
+def get_shift_or_404(cursor, shift_id: str) -> None:
+    """確認班次存在，不存在時回 404。"""
+    cursor.execute("SELECT id FROM shifts WHERE id = %s", (shift_id,))
+    if cursor.fetchone() is None:
+        raise HTTPException(status_code=404, detail={
+            "message": "找不到該班次資料",
+            "details": {"shift_id": shift_id}
+        })
 
 def require_param(name: str, value: Optional[str]) -> str:
     """確認必要的查詢參數有提供，缺少時回 400。"""
@@ -103,7 +188,7 @@ def require_param(name: str, value: Optional[str]) -> str:
 
 def get_ward_or_404(cursor, ward_id: str) -> dict:
     """查出病房資料，不存在時回 404。"""
-    cursor.execute("SELECT id, name FROM wards WHERE id = %s", (ward_id,))
+    cursor.execute("SELECT id, name, max_patients AS maxPatients FROM wards WHERE id = %s", (ward_id,))
     ward = cursor.fetchone()
     if ward is None:
         raise HTTPException(status_code=404, detail={
@@ -264,7 +349,7 @@ def get_wards():
 
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT id, name FROM wards ORDER BY id")
+            cursor.execute("SELECT id, name, max_patients AS maxPatients FROM wards ORDER BY id")
             return cursor.fetchall()
 
     finally:
@@ -273,7 +358,7 @@ def get_wards():
 @router.post("/wards")
 def create_ward(payload: WardCreate):
     """
-    新增一個病房。id 為病房代碼，不可與現有的重複。
+    新增一個病房。id 為病房代碼，不可與現有的重複；maxPatients 為病房最大容量。
     """
     conn = get_db_connection()
 
@@ -286,10 +371,244 @@ def create_ward(payload: WardCreate):
                     "details": {"ward_id": payload.id}
                 })
 
-            cursor.execute("INSERT INTO wards (id, name) VALUES (%s, %s)", (payload.id, payload.name))
+            cursor.execute(
+                "INSERT INTO wards (id, name, max_patients) VALUES (%s, %s, %s)",
+                (payload.id, payload.name, payload.maxPatients),
+            )
         conn.commit()
 
         return {"status": "success", "message": "病房已新增"}
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+@router.patch("/wards/{ward_id}")
+def update_ward(ward_id: str, payload: WardUpdate):
+    """
+    修改病房名稱或最大容量，只需要帶要修改的欄位。
+    最大容量修改後只影響之後產生的班次，已產生的班次維持產生當時的數字。
+    """
+    if payload.name is None and payload.maxPatients is None:
+        raise HTTPException(status_code=400, detail={
+            "message": "沒有提供要修改的欄位",
+            "details": "請至少提供 name 或 maxPatients 其中一項"
+        })
+
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            get_ward_or_404(cursor, ward_id)
+            # COALESCE(%s, 欄位)：有帶值就更新，沒帶 (NULL) 就維持原值
+            cursor.execute(
+                "UPDATE wards SET name = COALESCE(%s, name), max_patients = COALESCE(%s, max_patients) WHERE id = %s",
+                (payload.name, payload.maxPatients, ward_id),
+            )
+        conn.commit()
+
+        return {"status": "success", "message": "病房資料已更新"}
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+@router.post("/wards/{ward_id}/shifts")
+def generate_ward_shifts(ward_id: str, payload: ShiftsGenerate):
+    """
+    為病房產生一段期間內 (含頭尾) 每天的班次，每天每種班別 (大夜班、白班、小夜班) 各一個。
+    預期病人數為病房目前的最大容量，需求人數依護病比計算 (無條件進位)。
+    期間內只要已經有任何班次就整批拒絕，不會覆蓋或補齊。
+    """
+    days = check_date_range(payload.startDate, payload.endDate, "startDate", "endDate")
+
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            ward = get_ward_or_404(cursor, ward_id)
+
+            cursor.execute("""
+                SELECT DISTINCT DATE_FORMAT(date, '%%Y-%%m-%%d') AS date
+                FROM shifts
+                WHERE ward_id = %s AND date >= %s AND date <= %s
+                ORDER BY date
+            """, (ward_id, payload.startDate, payload.endDate))
+            existing_dates = [row["date"] for row in cursor.fetchall()]
+            if existing_dates:
+                raise HTTPException(status_code=409, detail={
+                    "message": "這段期間已經有班次，無法產生",
+                    "details": {"ward_id": ward_id, "existing_dates": existing_dates}
+                })
+
+            # 依開始時間排序，同一天依大夜班 (00:00)、白班、小夜班的順序產生
+            cursor.execute("SELECT id, nurse_to_patient_ratio FROM shift_types ORDER BY start_time")
+            shift_types = cursor.fetchall()
+
+            max_patients = ward["maxPatients"]
+            rows = []
+            for offset in range(days):
+                day = payload.startDate + timedelta(days=offset)
+                for shift_type in shift_types:
+                    rows.append((
+                        f"{ward_id}_{day:%y%m%d}_{shift_type['id']}",    # 例如 W01_260920_BA
+                        ward_id,
+                        day,
+                        shift_type["id"],
+                        max_patients,
+                        required_nurses_for(max_patients, shift_type["nurse_to_patient_ratio"]),
+                    ))
+            cursor.executemany(
+                "INSERT INTO shifts (id, ward_id, date, shift_type_id, expected_patients, required_nurses) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                rows,
+            )
+        conn.commit()
+
+        return {"status": "success", "message": f"已產生 {len(rows)} 個班次"}
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+@router.delete("/wards/{ward_id}/shifts")
+def delete_ward_shifts(ward_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """
+    刪除病房在一段期間內 (含頭尾) 的所有班次，例如病房容量改了、想重新產生某一週時使用。
+    只要有任何一個班次已經排了人、或有護理師針對它提出了指定班次的需求 (SHIFT_OFF / SHIFT_ON)，
+    就整批拒絕並列出原因。請先清空排班 (上傳空的 assignments)、收回需求後再刪除。
+    """
+    start = parse_date_param("start_date", start_date)
+    end = parse_date_param("end_date", end_date)
+    check_date_range(start, end, "start_date", "end_date")
+
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            get_ward_or_404(cursor, ward_id)
+
+            cursor.execute(
+                "SELECT COUNT(*) AS n FROM shifts WHERE ward_id = %s AND date >= %s AND date <= %s",
+                (ward_id, start, end),
+            )
+            shift_count = cursor.fetchone()["n"]
+            if shift_count == 0:
+                raise HTTPException(status_code=404, detail={
+                    "message": "這段期間沒有任何班次",
+                    "details": {"ward_id": ward_id, "start_date": start_date, "end_date": end_date}
+                })
+
+            cursor.execute("""
+                SELECT DISTINCT s.id
+                FROM shifts s
+                JOIN shift_assignments sa ON sa.shift_id = s.id
+                WHERE s.ward_id = %s AND s.date >= %s AND s.date <= %s
+                ORDER BY s.id
+            """, (ward_id, start, end))
+            assigned_shift_ids = [row["id"] for row in cursor.fetchall()]
+
+            cursor.execute("""
+                SELECT r.id AS requestId, r.target_shift_id AS shiftId, r.employee_id AS employeeId
+                FROM requests r
+                JOIN shifts s ON s.id = r.target_shift_id
+                WHERE s.ward_id = %s AND s.date >= %s AND s.date <= %s
+                ORDER BY r.id
+            """, (ward_id, start, end))
+            shift_requests = cursor.fetchall()
+
+            if assigned_shift_ids or shift_requests:
+                raise HTTPException(status_code=409, detail={
+                    "message": "有班次已經排了人或有護理師提出需求，無法刪除",
+                    "details": {
+                        "assigned_shift_ids": assigned_shift_ids,
+                        "requests": shift_requests,
+                        "hint": "請先清空這段期間的排班、收回這些需求後再刪除"
+                    }
+                })
+
+            cursor.execute(
+                "DELETE FROM shifts WHERE ward_id = %s AND date >= %s AND date <= %s",
+                (ward_id, start, end),
+            )
+        conn.commit()
+
+        return {"status": "success", "message": f"已刪除 {shift_count} 個班次"}
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+@router.patch("/shifts/{shift_id}")
+def update_shift(shift_id: str, payload: ShiftUpdate):
+    """
+    填入班次的實際病人數 (actualPatients)，填 null 代表清除。
+    系統會依護病比算出實際需求人數，並回傳這個班次目前的人力狀況。
+    排班時用的預期病人數與需求人數不會被改動。
+    """
+    if "actualPatients" not in payload.model_fields_set:
+        raise HTTPException(status_code=400, detail={
+            "message": "沒有提供要修改的欄位",
+            "details": "請提供 actualPatients (填 null 代表清除)"
+        })
+
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            get_shift_or_404(cursor, shift_id)
+            cursor.execute("UPDATE shifts SET actual_patients = %s WHERE id = %s", (payload.actualPatients, shift_id))
+            staffing = get_shift_staffing(cursor, shift_id)
+        conn.commit()
+
+        return {"status": "success", "message": "實際病人數已更新", "shift": staffing}
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+@router.delete("/shifts/{shift_id}/assignments/{employee_id}")
+def remove_assignment(shift_id: str, employee_id: str):
+    """
+    把一位護理師從班次中移除 (例如實際病人數較少、有人自願放假時)。
+    移除後如果人力低於需求仍會執行，但會在回應中提醒，由護理長決定是否補人。
+    """
+    conn = get_db_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            get_shift_or_404(cursor, shift_id)
+            deleted = cursor.execute(
+                "DELETE FROM shift_assignments WHERE shift_id = %s AND employee_id = %s",
+                (shift_id, employee_id),
+            )
+            if deleted == 0:
+                raise HTTPException(status_code=404, detail={
+                    "message": "該護理師沒有被排在這個班次",
+                    "details": {"shift_id": shift_id, "employee_id": employee_id}
+                })
+            staffing = get_shift_staffing(cursor, shift_id)
+        conn.commit()
+
+        message = "已將護理師移出班次"
+        if staffing["staffingStatus"] == "SHORTAGE":
+            message += f"，但此班次人力已低於需求 {-staffing['staffingDifference']} 人"
+        return {"status": "success", "message": message, "shift": staffing}
 
     except Exception:
         conn.rollback()
@@ -305,17 +624,7 @@ def set_ward_roster(ward_id: str, payload: RosterUpdate):
     該期間原本的名單會被整個取代；期間以外的名單不受影響。
     同一位護理師可以同時在多個病房的名單內。已停用 (離職) 的護理師不能加入名單。
     """
-    if payload.startDate > payload.endDate:
-        raise HTTPException(status_code=400, detail={
-            "message": "startDate 不可晚於 endDate",
-            "details": {"startDate": str(payload.startDate), "endDate": str(payload.endDate)}
-        })
-    days = (payload.endDate - payload.startDate).days + 1
-    if days > MAX_ROSTER_DAYS:
-        raise HTTPException(status_code=400, detail={
-            "message": "一次設定的期間過長",
-            "details": f"一次最多設定 {MAX_ROSTER_DAYS} 天，請分次設定"
-        })
+    days = check_date_range(payload.startDate, payload.endDate, "startDate", "endDate")
 
     # 去掉重複的編號，保留原本的順序
     employee_ids = list(dict.fromkeys(payload.employeeIds))
@@ -373,8 +682,8 @@ def set_ward_roster(ward_id: str, payload: RosterUpdate):
 def get_ward_roster(ward_id: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """
     查詢某個病房在日期區間內 (含頭尾) 的名單。
-    每位護理師會列出她在名單內的日期 (dates)，
-    以及她在這些日期同時還負責哪些其他病房 (otherWards，沒有則為空陣列)，供前端標註。
+    每位護理師會列出他在名單內的日期 (dates)，
+    以及他在這些日期同時還負責哪些其他病房 (otherWards，沒有則為空陣列)，供前端標註。
     """
     start = parse_date_param("start_date", start_date)
     end = parse_date_param("end_date", end_date)
@@ -428,28 +737,21 @@ def get_ward_roster(ward_id: str, start_date: Optional[str] = None, end_date: Op
         conn.close()
 
 @router.get("/solver/dataset")
-def get_solver_dataset(year_month: Optional[str] = None, ward_id: Optional[str] = None):
+def get_solver_dataset(start_date: Optional[str] = None, end_date: Optional[str] = None, ward_id: Optional[str] = None):
     """
     將資料庫的表組合成演算法所需的完整 JSON (格式同 ccu_nurse_rostering_testing.json)。
-    year_month 格式為 YYYY-MM，例如 2026-09；ward_id 為要排班的病房。
-    只回傳該病房的班次，以及該月份在該病房名單內的在職護理師。
-    另外多回傳 ward (病房資料) 與 roster (每位護理師哪幾天在名單內，不在名單內的日子不可排班)。
+    start_date、end_date 為這次排班的期間 (含頭尾，格式 YYYY-MM-DD)；ward_id 為要排班的病房。
+    只回傳該病房的班次，以及該期間在該病房名單內的在職護理師。
+    另外多回傳：
+      ward: 病房資料
+      roster: 每位護理師哪幾天在名單內，不在名單內的日子不可排班
+      previousAssignments: 這些護理師在開始日之前 7 天的排班紀錄 (不分病房)，供演算法檢查跨週的休息規則
     """
-    if not year_month:
-        raise HTTPException(status_code=400, detail={
-            "message": "缺少必要的查詢參數：year_month",
-            "details": "請提供 YYYY-MM 格式的月份"
-        })
+    start = parse_date_param("start_date", start_date)
+    end = parse_date_param("end_date", end_date)
     require_param("ward_id", ward_id)
-    try:
-        month_start = datetime.strptime(year_month, "%Y-%m").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail={
-            "message": "查詢參數 year_month 格式錯誤",
-            "details": "請提供 YYYY-MM 格式的月份"
-        })
-    # 下個月的 1 號，查詢範圍為 [month_start, next_month_start)
-    next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+    check_date_range(start, end, "start_date", "end_date")
+    history_start = start - timedelta(days=PREVIOUS_ASSIGNMENT_DAYS)
 
     conn = get_db_connection()
 
@@ -469,14 +771,14 @@ def get_solver_dataset(year_month: Optional[str] = None, ward_id: Optional[str] 
 
             ward = get_ward_or_404(cursor, ward_id)
 
-            # 這個月在該病房名單內的在職護理師，一列是「某位護理師、某一天」
+            # 這段期間在該病房名單內的在職護理師，一列是「某位護理師、某一天」
             cursor.execute("""
                 SELECT e.id, e.name, DATE_FORMAT(wr.date, '%%Y-%%m-%%d') AS date
                 FROM ward_rosters wr
                 JOIN employees e ON e.id = wr.employee_id AND e.is_active
-                WHERE wr.ward_id = %s AND wr.date >= %s AND wr.date < %s
+                WHERE wr.ward_id = %s AND wr.date >= %s AND wr.date <= %s
                 ORDER BY e.id, wr.date
-            """, (ward_id, month_start, next_month_start))
+            """, (ward_id, start, end))
             roster_dates = {}
             employee_names = {}
             for row in cursor.fetchall():
@@ -485,16 +787,18 @@ def get_solver_dataset(year_month: Optional[str] = None, ward_id: Optional[str] 
             employees = [{"id": i, "name": n} for i, n in employee_names.items()]
             roster = [{"employeeId": i, "dates": d} for i, d in roster_dates.items()]
 
+            # 同一天依開始時間排序：大夜班 (00:00) 是一天的第一班，接著白班、小夜班
             cursor.execute("""
-                SELECT id,
-                       DATE_FORMAT(date, '%%Y-%%m-%%d') AS date,
-                       shift_type_id AS shiftTypeId,
-                       expected_patients AS expectedPatients,
-                       required_nurses AS requiredNurses
-                FROM shifts
-                WHERE ward_id = %s AND date >= %s AND date < %s
-                ORDER BY date, id
-            """, (ward_id, month_start, next_month_start))
+                SELECT s.id,
+                       DATE_FORMAT(s.date, '%%Y-%%m-%%d') AS date,
+                       s.shift_type_id AS shiftTypeId,
+                       s.expected_patients AS expectedPatients,
+                       s.required_nurses AS requiredNurses
+                FROM shifts s
+                JOIN shift_types st ON st.id = s.shift_type_id
+                WHERE s.ward_id = %s AND s.date >= %s AND s.date <= %s
+                ORDER BY s.date, st.start_time, s.id
+            """, (ward_id, start, end))
             shifts = cursor.fetchall()
 
             # SHIFT_OFF / SHIFT_ON 的 target_date 是 NULL，日期要從 shifts 表查回來
@@ -508,11 +812,28 @@ def get_solver_dataset(year_month: Optional[str] = None, ward_id: Optional[str] 
                 FROM requests r
                 LEFT JOIN shifts s ON s.id = r.target_shift_id
                 WHERE COALESCE(r.target_date, s.date) >= %s
-                  AND COALESCE(r.target_date, s.date) < %s
+                  AND COALESCE(r.target_date, s.date) <= %s
                   AND (r.target_shift_id IS NULL OR s.ward_id = %s)
                 ORDER BY r.id
-            """, (month_start, next_month_start, ward_id))
+            """, (start, end, ward_id))
             request_rows = [row for row in cursor.fetchall() if row["employeeId"] in employee_names]
+
+            # 名單內護理師在開始日之前幾天的排班 (包含其他病房)
+            previous_assignments = []
+            if employee_names:
+                placeholders = ", ".join(["%s"] * len(employee_names))
+                cursor.execute(f"""
+                    SELECT sa.employee_id AS employeeId,
+                           DATE_FORMAT(s.date, '%%Y-%%m-%%d') AS date,
+                           s.shift_type_id AS shiftTypeId,
+                           s.ward_id AS wardId
+                    FROM shift_assignments sa
+                    JOIN shifts s ON s.id = sa.shift_id
+                    WHERE s.date >= %s AND s.date < %s
+                      AND sa.employee_id IN ({placeholders})
+                    ORDER BY sa.employee_id, s.date, s.id
+                """, [history_start, start, *employee_names])
+                previous_assignments = cursor.fetchall()
 
         requests = {"dayOff": [], "dayOn": [], "shiftOff": [], "shiftOn": []}
         request_keys = {"DAY_OFF": "dayOff", "DAY_ON": "dayOn", "SHIFT_OFF": "shiftOff", "SHIFT_ON": "shiftOn"}
@@ -530,7 +851,8 @@ def get_solver_dataset(year_month: Optional[str] = None, ward_id: Optional[str] 
             "employees": employees,
             "roster": roster,
             "shifts": shifts,
-            "requests": requests
+            "requests": requests,
+            "previousAssignments": previous_assignments
         }
 
     finally:
@@ -696,20 +1018,16 @@ def delete_request(request_id: int):
         conn.close()
 
 @router.post("/solver/assignments")
-def upload_assignments(items: List[AssignmentItem]):
+def upload_assignments(payload: AssignmentsUpload):
     """
     把演算法的排班結果存進 shift_assignments。
-    注意：上傳的班次所屬「病房 + 月份」的舊排班結果會先被清掉再寫入 (整月取代)，
-    這樣重新排班時才不會留下舊資料。其他病房的排班結果不受影響。
-    護理師必須在該班次所屬病房當天的名單內，否則回 400。
+    該病房在 startDate 到 endDate (含頭尾) 之間的舊排班結果會先被清掉再寫入，
+    期間以外、以及其他病房的排班結果都不受影響。assignments 給空陣列代表清空該期間的排班。
+    每個班次都必須屬於該病房且在期間內；護理師必須在該病房當天的名單內，否則回 400。
     """
-    if not items:
-        raise HTTPException(status_code=400, detail={
-            "message": "排班結果不可為空",
-            "details": "請至少提供一筆 { shiftId, employeeId }"
-        })
+    check_date_range(payload.startDate, payload.endDate, "startDate", "endDate")
 
-    pairs = [(item.shiftId, item.employeeId) for item in items]
+    pairs = [(item.shiftId, item.employeeId) for item in payload.assignments]
     duplicates = sorted({pair for pair in pairs if pairs.count(pair) > 1})
     if duplicates:
         raise HTTPException(status_code=400, detail={
@@ -724,63 +1042,76 @@ def upload_assignments(items: List[AssignmentItem]):
 
     try:
         with conn.cursor() as cursor:
-            placeholders = ", ".join(["%s"] * len(shift_ids))
-            cursor.execute(
-                "SELECT id, ward_id, date, DATE_FORMAT(date, '%%Y-%%m') AS month "
-                f"FROM shifts WHERE id IN ({placeholders})",
-                shift_ids,
-            )
-            shift_info = {row["id"]: row for row in cursor.fetchall()}
-            missing_shifts = [s for s in shift_ids if s not in shift_info]
-            if missing_shifts:
-                raise HTTPException(status_code=404, detail={
-                    "message": "找不到該班次資料",
-                    "details": {"shift_ids": missing_shifts}
-                })
+            get_ward_or_404(cursor, payload.wardId)
 
-            placeholders = ", ".join(["%s"] * len(employee_ids))
-            cursor.execute(f"SELECT id FROM employees WHERE id IN ({placeholders})", employee_ids)
-            found_employees = {row["id"] for row in cursor.fetchall()}
-            missing_employees = [e for e in employee_ids if e not in found_employees]
-            if missing_employees:
-                raise HTTPException(status_code=404, detail={
-                    "message": "找不到該護理師資料",
-                    "details": {"employee_ids": missing_employees}
-                })
+            if pairs:
+                placeholders = ", ".join(["%s"] * len(shift_ids))
+                cursor.execute(f"SELECT id, ward_id, date FROM shifts WHERE id IN ({placeholders})", shift_ids)
+                shift_info = {row["id"]: row for row in cursor.fetchall()}
+                missing_shifts = [s for s in shift_ids if s not in shift_info]
+                if missing_shifts:
+                    raise HTTPException(status_code=404, detail={
+                        "message": "找不到該班次資料",
+                        "details": {"shift_ids": missing_shifts}
+                    })
 
-            # 護理師必須在該班次所屬病房當天的名單內才能被排班 (不在名單內 = 不啟用)
-            ward_dates = sorted({(info["ward_id"], info["date"]) for info in shift_info.values()})
-            placeholders = ", ".join(["(%s, %s)"] * len(ward_dates))
-            cursor.execute(
-                f"SELECT ward_id, date, employee_id FROM ward_rosters WHERE (ward_id, date) IN ({placeholders})",
-                [value for pair in ward_dates for value in pair],
-            )
-            on_roster = {(row["ward_id"], row["date"], row["employee_id"]) for row in cursor.fetchall()}
-            not_on_roster = [
-                {"shiftId": s, "employeeId": e}
-                for s, e in pairs
-                if (shift_info[s]["ward_id"], shift_info[s]["date"], e) not in on_roster
-            ]
-            if not_on_roster:
-                raise HTTPException(status_code=400, detail={
-                    "message": "有護理師不在該班次所屬病房當天的名單內",
-                    "details": not_on_roster
-                })
+                # 班次必須屬於這個病房、且在這次上傳的期間內
+                out_of_scope = [
+                    s for s in shift_ids
+                    if shift_info[s]["ward_id"] != payload.wardId
+                    or not payload.startDate <= shift_info[s]["date"] <= payload.endDate
+                ]
+                if out_of_scope:
+                    raise HTTPException(status_code=400, detail={
+                        "message": "有班次不屬於這個病房或不在上傳的期間內",
+                        "details": {
+                            "wardId": payload.wardId,
+                            "startDate": str(payload.startDate),
+                            "endDate": str(payload.endDate),
+                            "shift_ids": out_of_scope
+                        }
+                    })
 
-            # 先清掉這些「病房 + 月份」的舊排班結果，不會動到其他病房
-            ward_months = sorted({(info["ward_id"], info["month"]) for info in shift_info.values()})
-            placeholders = ", ".join(["(%s, %s)"] * len(ward_months))
+                placeholders = ", ".join(["%s"] * len(employee_ids))
+                cursor.execute(f"SELECT id FROM employees WHERE id IN ({placeholders})", employee_ids)
+                found_employees = {row["id"] for row in cursor.fetchall()}
+                missing_employees = [e for e in employee_ids if e not in found_employees]
+                if missing_employees:
+                    raise HTTPException(status_code=404, detail={
+                        "message": "找不到該護理師資料",
+                        "details": {"employee_ids": missing_employees}
+                    })
+
+                # 護理師必須在該病房當天的名單內才能被排班 (不在名單內 = 不啟用)
+                cursor.execute(
+                    "SELECT date, employee_id FROM ward_rosters WHERE ward_id = %s AND date >= %s AND date <= %s",
+                    (payload.wardId, payload.startDate, payload.endDate),
+                )
+                on_roster = {(row["date"], row["employee_id"]) for row in cursor.fetchall()}
+                not_on_roster = [
+                    {"shiftId": s, "employeeId": e}
+                    for s, e in pairs
+                    if (shift_info[s]["date"], e) not in on_roster
+                ]
+                if not_on_roster:
+                    raise HTTPException(status_code=400, detail={
+                        "message": "有護理師不在該病房當天的名單內",
+                        "details": not_on_roster
+                    })
+
+            # 先清掉這個病房在這段期間的舊排班結果
             cursor.execute(
                 "DELETE sa FROM shift_assignments sa "
                 "JOIN shifts s ON s.id = sa.shift_id "
-                f"WHERE (s.ward_id, DATE_FORMAT(s.date, '%%Y-%%m')) IN ({placeholders})",
-                [value for pair in ward_months for value in pair],
+                "WHERE s.ward_id = %s AND s.date >= %s AND s.date <= %s",
+                (payload.wardId, payload.startDate, payload.endDate),
             )
 
-            cursor.executemany(
-                "INSERT INTO shift_assignments (shift_id, employee_id) VALUES (%s, %s)",
-                pairs,
-            )
+            if pairs:
+                cursor.executemany(
+                    "INSERT INTO shift_assignments (shift_id, employee_id) VALUES (%s, %s)",
+                    pairs,
+                )
         # 刪除與寫入全部成功才一次寫入，中途出錯就整批退回
         conn.commit()
 
@@ -798,6 +1129,7 @@ def get_schedule(start_date: Optional[str] = None, end_date: Optional[str] = Non
     """
     查詢某個病房在日期區間內 (含頭尾) 的最終班表，日期格式為 YYYY-MM-DD。
     尚未排人的班次也會回傳，assignedNurses 為空陣列。
+    每個班次附上預期與實際病人數、需求人數，前端可以依此顯示人力是否足夠。
     """
     start = parse_date_param("start_date", start_date)
     end = parse_date_param("end_date", end_date)
@@ -814,11 +1146,16 @@ def get_schedule(start_date: Optional[str] = None, end_date: Optional[str] = Non
         with conn.cursor() as cursor:
             get_ward_or_404(cursor, ward_id)
 
+            # 同一天依開始時間排序：大夜班 (00:00) 是一天的第一班，接著白班、小夜班
             cursor.execute("""
                 SELECT s.id AS shiftId,
                        DATE_FORMAT(s.date, '%%Y-%%m-%%d') AS date,
                        s.shift_type_id AS shiftTypeId,
                        st.name AS shiftName,
+                       s.expected_patients AS expectedPatients,
+                       s.required_nurses AS requiredNurses,
+                       s.actual_patients AS actualPatients,
+                       st.nurse_to_patient_ratio AS ratio,
                        e.id AS employeeId,
                        e.name AS employeeName
                 FROM shifts s
@@ -826,7 +1163,7 @@ def get_schedule(start_date: Optional[str] = None, end_date: Optional[str] = Non
                 LEFT JOIN shift_assignments sa ON sa.shift_id = s.id
                 LEFT JOIN employees e ON e.id = sa.employee_id
                 WHERE s.ward_id = %s AND s.date >= %s AND s.date <= %s
-                ORDER BY s.date, s.id, e.id
+                ORDER BY s.date, st.start_time, s.id, e.id
             """, (ward_id, start, end))
             rows = cursor.fetchall()
 
@@ -834,9 +1171,17 @@ def get_schedule(start_date: Optional[str] = None, end_date: Optional[str] = Non
         schedule = {}
         for row in rows:
             entry = schedule.setdefault(row["shiftId"], {
+                "shiftId": row["shiftId"],
                 "date": row["date"],
                 "shiftTypeId": row["shiftTypeId"],
                 "shiftName": row["shiftName"],
+                "expectedPatients": row["expectedPatients"],
+                "requiredNurses": row["requiredNurses"],
+                "actualPatients": row["actualPatients"],
+                "actualRequiredNurses": (
+                    None if row["actualPatients"] is None
+                    else required_nurses_for(row["actualPatients"], row["ratio"])
+                ),
                 "assignedNurses": []
             })
             if row["employeeId"] is not None:

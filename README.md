@@ -16,14 +16,15 @@ Python 3.11.9 下載網址: https://python.club.tw/downloads/release/python-3119
 
 請負責資料庫的同學使用 `create_database.sql` 創建 MySQL 資料庫，並將資料庫命名為 `ccu_nurse_rostering`
 
-資料庫架構有更新 (新增病房 `wards`、病房名單 `ward_rosters`，`employees` 多了 `is_active`，`shifts` 多了 `ward_id`)。
+資料庫架構有更新 (新增病房 `wards`、病房名單 `ward_rosters`，`employees` 多了 `is_active`，
+`shifts` 多了 `ward_id` 與 `actual_patients`，`wards` 多了 `max_patients`)。
 如果之前已經建立過資料庫，請依下列步驟重建 (會清空資料庫內的所有資料):
 
 1. 在 MySQL 執行 `DROP DATABASE ccu_nurse_rostering;`
 2. 重新執行 `create_database.sql`
 3. 在專案資料夾執行 `python seed_database.py` 匯入假資料
 
-## 護理師的三種狀態
+# 護理師的三種狀態
 
 系統支援多個病房，護理師對某個病房在某一天的狀態有三種:
 
@@ -36,6 +37,17 @@ Python 3.11.9 下載網址: https://python.club.tw/downloads/release/python-3119
 這和「停用」(離職，`isActive` 為 `false`) 是兩件事: 停用是整間醫院都不再排班，不啟用只是這段期間不負責這個病房。
 
 同一位護理師可以同時在多個病房的名單內。
+
+# 週排班的流程
+
+每個病房每天都有大夜班、白班、小夜班三個班次 (大夜班 00:00 開始，是一天的第一班)。排班以週為單位，但每個病房對一週從哪天開始的認定不同，
+所以所有 API 都用「開始日 + 結束日」表示期間，不限定 7 天，也不限定從星期幾開始。
+
+1. 設定病房最大容量 (1.7)，容量有變時再修改
+2. 設定這週的病房名單 (1.8)
+3. 產生這週的班次 (1.10)，需求人數依病房最大容量與護病比計算。需要重新產生時先刪除 (1.11)
+4. 演算法取得資料 (2.1)、排班後上傳結果 (2.2)
+5. 實際病人數較少時，護理長填入實際病人數 (4.1)，再把多出來的人移出班次 (4.2)
 
 # API格式
 
@@ -130,16 +142,23 @@ Base URL (本地測試網址): http://localhost:8000
 * 輸出 (Response):
   ```
   [
-    { "id": "W01", "name": "預設病房" }
+    { "id": "W01", "name": "預設病房", "maxPatients": 35 }
   ]
   ```
 * 方法與網址: `POST /api/wards`
-* 輸入 (Request):
+* 輸入 (Request): `maxPatients` 為病房最大容量 (最多能收幾位病人)
   ```
-  { "id": "W02", "name": "內科病房" }
+  { "id": "W02", "name": "內科病房", "maxPatients": 40 }
   ```
 * 輸出 (Response): `{"status": "success", "message": "病房已新增"}`
 * 限制: `id` (病房代碼) 不可重複，重複時回傳 409。
+* 方法與網址: `PATCH /api/wards/{病房代碼}` (修改名稱或最大容量，只需要帶要修改的欄位)
+* 輸入 (Request):
+  ```
+  { "maxPatients": 38 }
+  ```
+* 輸出 (Response): `{"status": "success", "message": "病房資料已更新"}`
+* 說明: 最大容量修改後**只影響之後產生的班次**，已經產生的班次維持產生當時的數字。
 
 ### 1.8 設定病房名單
 
@@ -191,31 +210,65 @@ Base URL (本地測試網址): http://localhost:8000
   * `otherWards`: 該護理師在這些日期同時還負責哪些其他病房。
     **不是空陣列時，請前端在畫面上標註這位護理師同時負責多個病房**
 
+### 1.10 產生班次
+
+為病房產生一段期間內每天的大夜班、白班、小夜班
+
+* 方法與網址: `POST /api/wards/{病房代碼}/shifts`
+* 輸入 (Request):
+  ```
+  { "startDate": "2026-09-20", "endDate": "2026-09-26" }
+  ```
+* 輸出 (Response): `{"status": "success", "message": "已產生 21 個班次"}`
+* 說明:
+  * 每個班次的預期病人數 = 病房目前的最大容量；需求人數 = 最大容量 ÷ 護病比，無條件進位
+  * 班次 ID 格式為 `病房代碼_年月日_班別`，例如 `W01_260920_BA`
+  * **期間內只要已經有任何班次就整批拒絕 (409)**，回應會列出已有班次的日期。
+    要重新產生時，請先用 1.11 刪除那段期間的班次
+
+### 1.11 刪除班次
+
+刪除病房在一段期間內的所有班次，例如病房容量改了、想重新產生某一週時使用
+
+* 方法與網址: `DELETE /api/wards/{病房代碼}/shifts?start_date=2026-09-20&end_date=2026-09-26`
+* 輸入 (Request): 無
+* 輸出 (Response): `{"status": "success", "message": "已刪除 21 個班次"}`
+* 說明:
+  * **只要有任何一個班次已經排了人，或有護理師針對它提出指定班次的需求 (`SHIFT_OFF` / `SHIFT_ON`)，就整批拒絕 (409)**，
+    回應的 `details` 會列出已排人的班次 (`assigned_shift_ids`) 與相關需求 (`requests`)
+  * 要刪除的話，請先用 2.2 上傳空的 `assignments` 清空那段期間的排班，再用 1.4 收回那些需求
+  * 期間內沒有任何班次時回傳 404
+
 ## 2. 演算法與資料庫對接
 
 ### 2.1 獲取演算法所需的所有參數 
 將資料庫的表組合成完整 JSON 格式
 
-* 方法與網址: `GET /api/solver/dataset?year_month=2026-09&ward_id=W01` (兩個參數都必填)
+* 方法與網址: `GET /api/solver/dataset?start_date=2026-09-20&end_date=2026-09-26&ward_id=W01` (三個參數都必填)
 * 輸入 (Request): 無 
 * 輸出 (Response):
   ```
   {
     "masterData": { "shiftTypes": [...] },
-    "ward": { "id": "W01", "name": "預設病房" },
+    "ward": { "id": "W01", "name": "預設病房", "maxPatients": 35 },
     "employees": [...],
     "roster": [
-      { "employeeId": "1001", "dates": ["2026-09-01", "2026-09-02", ...] }
+      { "employeeId": "1001", "dates": ["2026-09-20", "2026-09-21", ...] }
     ],
     "shifts": [...],
-    "requests": { "dayOff": [...], "dayOn": [...], ... }
+    "requests": { "dayOff": [...], "dayOn": [...], ... },
+    "previousAssignments": [
+      { "employeeId": "1002", "date": "2026-09-19", "shiftTypeId": "AA", "wardId": "W01" }
+    ]
   }
   ```
 * 說明:
-  * `shifts`: 只包含該病房的班次
-  * `employees`: 只包含該月份在該病房名單內、且在職的護理師
+  * `shifts`: 只包含該病房在期間內的班次
+  * `employees`: 只包含期間內在該病房名單內、且在職的護理師
   * `roster`: 每位護理師哪幾天在名單內，**不在 `dates` 裡的日期不可排班** (不啟用)
   * `requests`: 只包含上述護理師的需求
+  * `previousAssignments`: 上述護理師在開始日之前 7 天的排班紀錄 (包含其他病房)，
+    演算法用來檢查跨週的休息規則，例如上週六上小夜班 (到 24:00)，這週日就不能接大夜班 (00:00 開始)
 
 ### 2.2 上傳演算法排班結果
 把排班結果存進 `shift_assignments` 資料表
@@ -223,52 +276,113 @@ Base URL (本地測試網址): http://localhost:8000
 * 方法與網址: `POST /api/solver/assignments`
 * 輸入 (Request): (演算法算出的配對結果)
   ```
-  [
-    { "shiftId": "SHIFT_260912_01", "employeeId": "1001" },
-    { "shiftId": "SHIFT_260912_02", "employeeId": "1004" },
-    { "shiftId": "SHIFT_260912_03", "employeeId": "1002" }
-  ]
+  {
+    "wardId": "W01",
+    "startDate": "2026-09-20",
+    "endDate": "2026-09-26",
+    "assignments": [
+      { "shiftId": "W01_260920_BA", "employeeId": "1001" },
+      { "shiftId": "W01_260920_CG", "employeeId": "1004" },
+      { "shiftId": "W01_260920_AA", "employeeId": "1002" }
+    ]
+  }
   ```
 * 輸出 (Response): `{"status": "success", "message": "排班結果已寫入資料庫"}`
 * 說明:
-  * 整月取代: 上傳的班次所屬「病房 + 月份」的舊排班結果會先被清掉再寫入，其他病房不受影響
-  * 護理師必須在該班次所屬病房當天的名單內，否則回傳 400
+  * 該病房在 `startDate` 到 `endDate` 之間的舊排班結果會先被清掉再寫入，期間以外與其他病房都不受影響
+  * `assignments` 給空陣列代表清空該期間的排班
+  * 每個班次都必須屬於 `wardId` 且在期間內，否則回傳 400
+  * 護理師必須在該病房當天的名單內，否則回傳 400
 
 ## 3. 最終班表查詢 (前端顯示用)
 
 ### 3.1 查詢最終班表
 
-* 方法與網址: `GET /api/schedule?start_date=2026-09-01&end_date=2026-09-30&ward_id=W01` (三個參數都必填)
+* 方法與網址: `GET /api/schedule?start_date=2026-09-20&end_date=2026-09-26&ward_id=W01` (三個參數都必填)
 * 輸入 (Request): 無
-* 輸出 (Response):
+* 輸出 (Response): (同一天依時間先後排序：大夜班、白班、小夜班)
   ```
   [
     {
-      "date": "2026-09-01",
+      "shiftId": "W01_260920_BA",
+      "date": "2026-09-20",
       "shiftTypeId": "BA",
       "shiftName": "白班",
+      "expectedPatients": 35,
+      "requiredNurses": 5,
+      "actualPatients": 28,
+      "actualRequiredNurses": 4,
       "assignedNurses": [
         { "id": "1001", "name": "Alice" },
         { "id": "1004", "name": "David" }
       ]
     },
     {
-      "date": "2026-09-01",
+      "shiftId": "W01_260920_CG",
+      "date": "2026-09-20",
       "shiftTypeId": "CG",
-      "shiftName": "小夜",
+      "shiftName": "小夜班",
+      "expectedPatients": 35,
+      "requiredNurses": 4,
+      "actualPatients": null,
+      "actualRequiredNurses": null,
       "assignedNurses": [
         { "id": "1002", "name": "Bob" }
       ]
     }
   ]
   ```
+* 說明:
+  * `expectedPatients`、`requiredNurses`: 排班時的預期病人數 (病房最大容量) 與需求人數
+  * `actualPatients`、`actualRequiredNurses`: 護理長填入的實際病人數與依此算出的需求人數，未填時為 `null`
+
+## 4. 排班後調整 (護理長用)
+
+### 4.1 填入實際病人數
+
+* 方法與網址: `PATCH /api/shifts/{班次ID}`
+* 輸入 (Request): (填 `null` 代表清除)
+  ```
+  { "actualPatients": 28 }
+  ```
+* 輸出 (Response): 附上這個班次目前的人力狀況
+  ```
+  {
+    "status": "success",
+    "message": "實際病人數已更新",
+    "shift": {
+      "shiftId": "W01_260920_BA",
+      "wardId": "W01",
+      "date": "2026-09-20",
+      "shiftTypeId": "BA",
+      "expectedPatients": 35,
+      "requiredNurses": 5,
+      "actualPatients": 28,
+      "actualRequiredNurses": 4,
+      "assignedCount": 5,
+      "staffingDifference": 1,
+      "staffingStatus": "SURPLUS"
+    }
+  }
+  ```
+* 說明:
+  * 排班時的預期病人數與需求人數不會被改動，實際病人數另外記錄
+  * `staffingStatus`: `SURPLUS` (人力多餘)、`OK` (剛好)、`SHORTAGE` (不足)。
+    有填實際病人數時以實際需求人數為準，否則以排班時的需求人數為準
+  * `staffingDifference`: 已排人數減去需求人數，正數代表多出幾人，負數代表缺幾人
+
+### 4.2 把護理師移出班次
+
+實際病人數較少、有人自願放假時使用
+
+* 方法與網址: `DELETE /api/shifts/{班次ID}/assignments/{員工編號}`
+* 輸入 (Request): 無
+* 輸出 (Response): `{"status": "success", "message": "已將護理師移出班次", "shift": {...}}`
+  (`shift` 的格式同 4.1)
+* 說明: 移除後人力低於需求時**仍會執行**，但 `message` 會提醒缺幾人，`staffingStatus` 為 `SHORTAGE`，由護理長決定是否補人
 
 # 測試資料
 
-使用 `ccu_nurse_rostering_testing.json` 作為測試用的假資料，模擬 2026 年 9 月 1 日 至 14 日共兩週的排班情況
-
-假資料沒有病房的資訊，用 `python seed_database.py` 匯入時會自動建立一個預設病房 `W01`，
-把所有班次歸到 `W01`，並把 15 位護理師放進 `W01` 在 9/1 到 9/14 的名單
 
 # 錯誤格式
 
@@ -282,13 +396,13 @@ Base URL (本地測試網址): http://localhost:8000
 以下舉例錯誤類型:
 
 ## 1. 參數錯誤或業務邏輯錯誤 (HTTP Status 400)
-例如忘記輸入月份參數
+例如忘記輸入開始日期參數
    ```
    {
     "status": "error",
     "error_code": 400,
-    "message": "缺少必要的查詢參數：year_month",
-    "details": "請提供 YYYY-MM 格式的月份"
+    "message": "缺少必要的查詢參數：start_date",
+    "details": "請提供 YYYY-MM-DD 格式的日期"
    }
    ```
 
