@@ -112,8 +112,10 @@ class AssignmentsUpload(BaseModel):
 # 一次處理的日期區間天數上限 (名單、班次、排班)，避免打錯年份時寫入大量資料
 MAX_DATE_RANGE_DAYS = 92
 
-# 演算法需要參考排班期間開始前幾天的排班紀錄 (跨週的休息規則用)
-PREVIOUS_ASSIGNMENT_DAYS = 7
+# 演算法需要參考排班期間開始前幾天的排班紀錄
+# 勞基法 (四週變形工時) 要看 4 週內的工時與休假天數：前 27 天 + 排班期間第一天 = 完整的 4 週 (28 天)
+# 也用來檢查換班時至少 11 小時的休息時間
+PREVIOUS_ASSIGNMENT_DAYS = 27
 
 def required_nurses_for(patients: int, ratio: int) -> int:
     """依護病比算出需要的護理師人數 (無條件進位)，例如 35 位病人、1:7 -> 5 人。"""
@@ -745,7 +747,8 @@ def get_solver_dataset(start_date: Optional[str] = None, end_date: Optional[str]
     另外多回傳：
       ward: 病房資料
       roster: 每位護理師哪幾天在名單內，不在名單內的日子不可排班
-      previousAssignments: 這些護理師在開始日之前 7 天的排班紀錄 (不分病房)，供演算法檢查跨週的休息規則
+      previousAssignments: 這些護理師在開始日之前 27 天的排班紀錄 (不分病房)，
+                           供演算法檢查換班的休息時間，以及 2 週、4 週內的休假天數與工時
     """
     start = parse_date_param("start_date", start_date)
     end = parse_date_param("end_date", end_date)
