@@ -1,9 +1,13 @@
 import os
+from pathlib import Path
+
 import pymysql
 from dotenv import load_dotenv
 
 # 1. 載入根目錄的 .env 檔案
-load_dotenv()
+# 明確指定路徑，避免從其他目錄啟動 (或 uvicorn --reload 的子行程) 時找不到 .env
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(ENV_PATH)
 
 # 2. 讀取環境變數中的資料庫連線設定
 DB_USER = os.getenv("DB_USER")

@@ -19,3 +19,6 @@ Thumbs.db
 # 編輯器暫存檔 (如 VS Code)
 .vscode/
 .idea/
+
+# 其他
+.claude/
